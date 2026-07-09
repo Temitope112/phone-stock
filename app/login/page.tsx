@@ -1,0 +1,144 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Loader2, Smartphone } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setError("");
+
+    const result = await login(email, password);
+
+    setLoading(false);
+
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+
+    router.push("/dashboard");
+  };
+
+  return (
+    <main className="min-h-screen bg-[#050816] px-5 py-10 text-white">
+      <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-[1100px] items-center justify-center">
+
+        <div className="grid w-full overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] lg:grid-cols-2">
+
+          <div className="hidden bg-gradient-to-br from-cyan-400 to-blue-700 p-10 text-[#050816] lg:block">
+
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#050816] text-cyan-300">
+              <Smartphone size={30} />
+            </div>
+
+            <h1 className="mt-10 text-5xl font-black leading-tight">
+              Welcome Back.
+            </h1>
+
+            <p className="mt-6 max-w-md text-lg leading-8 text-[#050816]/75">
+              Sign in to manage your products, inventory and sales from your dashboard.
+            </p>
+
+          </div>
+
+          <div className="p-8 md:p-10">
+
+            <h2 className="text-3xl font-black">
+              Login
+            </h2>
+
+            <p className="mt-2 text-white/50">
+              Continue managing your business.
+            </p>
+
+            {error && (
+              <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-300">
+                {error}
+              </div>
+            )}
+
+            <form
+              onSubmit={handleLogin}
+              className="mt-8 space-y-5"
+            >
+
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e)=>setEmail(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none focus:border-cyan-400"
+              />
+
+              <div className="relative">
+
+                <input
+                  type={showPassword ? "text":"password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e)=>setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 pr-14 outline-none focus:border-cyan-400"
+                />
+
+                <button
+                  type="button"
+                  onClick={()=>setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2"
+                >
+                  {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}
+                </button>
+
+              </div>
+
+              <button
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-cyan-400 py-4 font-black text-[#050816] transition hover:bg-cyan-300"
+              >
+
+                {loading && (
+                  <Loader2
+                    size={20}
+                    className="animate-spin"
+                  />
+                )}
+
+                {loading ? "Signing In..." : "Login"}
+
+              </button>
+
+            </form>
+
+            <p className="mt-7 text-center text-sm text-white/50">
+              Don't have an account?{" "}
+              <Link
+                href="/register"
+                className="font-bold text-cyan-300"
+              >
+                Register
+              </Link>
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+  );
+}
