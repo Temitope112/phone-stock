@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Upload } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import SellPhoneModal from "./components/SellPhoneModal";
@@ -19,6 +20,7 @@ type Phone = {
   cost_price: number | null;
   quantity: number;
   status: string;
+  image_url: string | null;
 };
 
 export default function ProductsPage() {
@@ -31,6 +33,7 @@ export default function ProductsPage() {
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("All");
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -72,13 +75,8 @@ export default function ProductsPage() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      alert(error.message);
-    }
-
-    if (data) {
-      setPhones(data);
-    }
+    if (error) alert(error.message);
+    if (data) setPhones(data);
 
     setLoading(false);
   };
@@ -86,6 +84,28 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchPhones();
   }, [user]);
+
+  const uploadPhoneImage = async () => {
+    if (!imageFile || !user) return null;
+
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from("phone-images")
+      .upload(filePath, imageFile);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const { data } = supabase.storage
+      .from("phone-images")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
 
   const addPhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,51 +117,57 @@ export default function ProductsPage() {
       return;
     }
 
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const quantity = Number(form.quantity);
+      const imageUrl = await uploadPhoneImage();
+      const quantity = Number(form.quantity);
 
-    const { error } = await supabase.from("phones").insert({
-      user_id: user.id,
-      name: form.name,
-      brand: form.brand,
-      model: form.model,
-      storage: form.storage,
-      ram: form.ram,
-      color: form.color,
-      condition: form.condition,
-      price: Number(form.price),
-      cost_price: form.cost_price ? Number(form.cost_price) : null,
-      quantity,
-      status: quantity > 0 ? "Available" : "Sold Out",
-    });
+      const { error } = await supabase.from("phones").insert({
+        user_id: user.id,
+        name: form.name,
+        brand: form.brand,
+        model: form.model,
+        storage: form.storage,
+        ram: form.ram,
+        color: form.color,
+        condition: form.condition,
+        price: Number(form.price),
+        cost_price: form.cost_price ? Number(form.cost_price) : null,
+        quantity,
+        status: quantity > 0 ? "Available" : "Sold Out",
+        image_url: imageUrl,
+      });
 
-    setSaving(false);
+      if (error) {
+        alert(error.message);
+        return;
+      }
 
-    if (error) {
-      alert(error.message);
-      return;
+      setForm({
+        name: "",
+        brand: "",
+        model: "",
+        storage: "",
+        ram: "",
+        color: "",
+        condition: "Brand New",
+        price: "",
+        cost_price: "",
+        quantity: "",
+      });
+
+      setImageFile(null);
+      fetchPhones();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Image upload failed.");
+    } finally {
+      setSaving(false);
     }
-
-    setForm({
-      name: "",
-      brand: "",
-      model: "",
-      storage: "",
-      ram: "",
-      color: "",
-      condition: "Brand New",
-      price: "",
-      cost_price: "",
-      quantity: "",
-    });
-
-    fetchPhones();
   };
 
   const deletePhone = async (id: string) => {
     const confirmDelete = confirm("Delete this phone?");
-
     if (!confirmDelete) return;
 
     const { error } = await supabase.from("phones").delete().eq("id", id);
@@ -174,6 +200,27 @@ export default function ProductsPage() {
           <Plus size={20} />
           Add New Phone
         </h2>
+
+        <div className="mb-6 rounded-2xl border border-dashed border-white/10 bg-[#071020] p-5">
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-3 text-center">
+            <Upload className="text-cyan-300" size={28} />
+
+            <span className="font-bold">
+              {imageFile ? imageFile.name : "Upload phone image"}
+            </span>
+
+            <span className="text-sm text-white/45">
+              PNG, JPG, JPEG or WEBP
+            </span>
+
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+            />
+          </label>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <input
@@ -292,10 +339,11 @@ export default function ProductsPage() {
           <p className="mt-6 text-white/50">No phones found.</p>
         ) : (
           <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[950px] text-left text-sm">
+            <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="text-white/40">
                 <tr>
-                  <th className="py-3">Name</th>
+                  <th className="py-3">Image</th>
+                  <th>Name</th>
                   <th>Brand</th>
                   <th>Condition</th>
                   <th>Price</th>
@@ -308,7 +356,25 @@ export default function ProductsPage() {
               <tbody>
                 {filteredPhones.map((phone) => (
                   <tr key={phone.id} className="border-t border-white/10">
-                    <td className="py-4 font-bold">{phone.name}</td>
+                    <td className="py-4">
+                      <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-white/10">
+                        {phone.image_url ? (
+                          <Image
+                            src={phone.image_url}
+                            alt={phone.name}
+                            fill
+                            sizes="56px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-white/40">
+                            No img
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="font-bold">{phone.name}</td>
                     <td>{phone.brand}</td>
                     <td>{phone.condition}</td>
                     <td>₦{Number(phone.price).toLocaleString()}</td>
