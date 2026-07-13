@@ -169,7 +169,7 @@ export default function LandingFooter() {
               </Link>
 
               <Link
-                href="/contact"
+                href="/support"
                 className="text-white/55 transition hover:text-cyan-300"
               >
                 Support

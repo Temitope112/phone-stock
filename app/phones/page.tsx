@@ -8,7 +8,7 @@ import {
   Search,
   Smartphone,
 } from "lucide-react";
-
+import MarketplaceDisclaimer from "../components/marketing/MarketplaceDisclaimer";
 import LandingNavbar from "../components/marketing/LandingNavbar";
 import LandingFooter from "../components/marketing/LandingFooter";
 import { supabase } from "../lib/supabase";
@@ -164,6 +164,9 @@ export default function PhonesPage() {
               directly through WhatsApp.
             </p>
           </div>
+          <div className="mx-auto mt-10 max-w-[1000px]">
+  <MarketplaceDisclaimer />
+</div>
 
           <div className="mx-auto mt-12 flex max-w-[1000px] flex-col gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 md:flex-row">
             <div className="flex flex-1 items-center gap-3 rounded-xl border border-white/10 bg-[#071020] px-4">
