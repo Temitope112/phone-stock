@@ -11,9 +11,9 @@ import {
   ShieldCheck,
   Smartphone,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../lib/supabase";
 
 const ADMIN_EMAIL = "temitopeeniola295@gmail.com";
 
@@ -23,58 +23,82 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const isValid = email.trim() !== "" && password.trim() !== "";
+  const isValid =
+    email.trim().length > 0 && password.trim().length > 0;
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleLogin = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
 
-    if (!isValid || loading) return;
+    if (loading) return;
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password.trim()) {
+      toast.error("Complete all fields", {
+        description: "Enter your email address and password.",
+      });
+
+      return;
+    }
+
+    const toastId = toast.loading("Signing you in...", {
+      description: "Verifying your PhoneStock account.",
+    });
 
     try {
       setLoading(true);
-      setError("");
 
-      const result = await login(email.trim(), password);
+      const result = await login(cleanEmail, password);
 
       if (result.error) {
-        setError(result.error);
+        toast.error("Login failed", {
+          id: toastId,
+          description: result.error,
+        });
+
         return;
       }
 
-      const {
-        data: { user: loggedInUser },
-        error: userError,
-      } = await supabase.auth.getUser();
+      if (!result.user) {
+        toast.error("Login failed", {
+          id: toastId,
+          description:
+            "Your account was authenticated, but the user information could not be loaded.",
+        });
 
-      if (userError || !loggedInUser) {
-        setError(
-          userError?.message ||
-            "Login succeeded, but your account could not be verified."
-        );
         return;
       }
 
-      const loggedInEmail = loggedInUser.email?.trim().toLowerCase();
-      const adminEmail = ADMIN_EMAIL.toLowerCase();
+      const loggedInEmail =
+        result.user.email?.trim().toLowerCase() || "";
 
-      if (loggedInEmail === adminEmail) {
-        router.replace("/admin");
-      } else {
-        router.replace("/dashboard");
-      }
+      const isAdmin =
+        loggedInEmail === ADMIN_EMAIL.toLowerCase();
 
+      toast.success("Login successful", {
+        id: toastId,
+        description: isAdmin
+          ? "Opening the administrator dashboard..."
+          : "Opening your vendor dashboard...",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      router.replace(isAdmin ? "/admin" : "/dashboard");
       router.refresh();
     } catch (loginError) {
-      setError(
-        loginError instanceof Error
-          ? loginError.message
-          : "Something went wrong while signing in."
-      );
+      toast.error("Unable to sign in", {
+        id: toastId,
+        description:
+          loginError instanceof Error
+            ? loginError.message
+            : "An unexpected error occurred. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -82,12 +106,13 @@ export default function LoginPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050816] px-5 py-10 text-white">
-      <div className="absolute left-1/2 top-0 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[160px]" />
+      <div className="pointer-events-none absolute left-1/2 top-0 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[160px]" />
 
       <div className="relative mx-auto flex min-h-[calc(100vh-80px)] max-w-[1150px] items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-[0_35px_140px_rgba(34,211,238,0.12)] lg:grid-cols-[0.95fr_1.05fr]">
           <section className="relative hidden overflow-hidden bg-gradient-to-br from-cyan-300 via-cyan-500 to-blue-700 p-10 text-[#050816] lg:flex lg:flex-col lg:justify-between">
             <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full border border-[#050816]/10" />
+
             <div className="absolute -bottom-24 -left-20 h-80 w-80 rounded-full bg-[#050816]/10 blur-2xl" />
 
             <div className="relative">
@@ -98,6 +123,7 @@ export default function LoginPage() {
 
                 <div>
                   <h1 className="text-2xl font-black">PhoneStock</h1>
+
                   <p className="text-xs uppercase tracking-[0.3em] text-[#050816]/60">
                     Vendor Management
                   </p>
@@ -152,16 +178,11 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {error && (
-              <div
-                role="alert"
-                className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300"
-              >
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleLogin} className="mt-8 space-y-5">
+            <form
+              onSubmit={handleLogin}
+              noValidate
+              className="mt-8 space-y-5"
+            >
               <div>
                 <label
                   htmlFor="email"
@@ -174,15 +195,17 @@ export default function LoginPage() {
                   id="email"
                   type="email"
                   autoComplete="email"
+                  inputMode="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/30 focus:border-cyan-400"
+                  disabled={loading}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/30 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-4">
                   <label
                     htmlFor="password"
                     className="text-sm font-semibold text-white/65"
@@ -205,17 +228,23 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 pr-14 outline-none transition placeholder:text-white/30 focus:border-cyan-400"
+                    disabled={loading}
+                    onChange={(event) =>
+                      setPassword(event.target.value)
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 pr-14 outline-none transition placeholder:text-white/30 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   />
 
                   <button
                     type="button"
-                    onClick={() => setShowPassword((current) => !current)}
+                    disabled={loading}
+                    onClick={() =>
+                      setShowPassword((current) => !current)
+                    }
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-cyan-300"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {showPassword ? (
                       <EyeOff size={20} />
@@ -235,7 +264,10 @@ export default function LoginPage() {
                     : "cursor-not-allowed bg-white/10 text-white/35"
                 }`}
               >
-                {loading && <Loader2 size={20} className="animate-spin" />}
+                {loading && (
+                  <Loader2 size={20} className="animate-spin" />
+                )}
+
                 {loading ? "Signing in..." : "Login"}
               </button>
             </form>

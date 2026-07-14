@@ -15,6 +15,7 @@ import {
   Smartphone,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -41,7 +42,6 @@ export default function RegisterPage() {
   const [form, setForm] = useState<RegisterForm>(initialForm);
   const [showPassword, setShowPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const passwordChecks = useMemo(
@@ -64,15 +64,14 @@ export default function RegisterPage() {
       acceptedTerms
   );
 
-  const updateField = (field: keyof RegisterForm, value: string) => {
+  const updateField = (
+    field: keyof RegisterForm,
+    value: string
+  ) => {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
-
-    if (error) {
-      setError("");
-    }
   };
 
   const handleSubmit = async (
@@ -80,21 +79,60 @@ export default function RegisterPage() {
   ) => {
     event.preventDefault();
 
-    if (!isValid || loading) {
-      if (!acceptedTerms) {
-        setError(
-          "Please accept the Terms and Privacy Policy to continue."
-        );
-      } else {
-        setError("Please complete all required fields correctly.");
-      }
+    if (loading) return;
 
+    if (!form.fullName.trim()) {
+      toast.error("Full name is required");
       return;
     }
 
+    if (!form.businessName.trim()) {
+      toast.error("Business name is required");
+      return;
+    }
+
+    if (!form.phoneNumber.trim()) {
+      toast.error("Phone number is required", {
+        description:
+          "Customers will use this number to contact you.",
+      });
+      return;
+    }
+
+    if (!form.email.trim()) {
+      toast.error("Email address is required");
+      return;
+    }
+
+    if (!passwordChecks.length) {
+      toast.error("Password is too short", {
+        description: "Your password must contain at least 6 characters.",
+      });
+      return;
+    }
+
+    if (!passwordChecks.letter || !passwordChecks.number) {
+      toast.error("Password is not strong enough", {
+        description:
+          "Include at least one letter and one number.",
+      });
+      return;
+    }
+
+    if (!acceptedTerms) {
+      toast.error("Accept the legal terms", {
+        description:
+          "You must accept the Terms and Privacy Policy to continue.",
+      });
+      return;
+    }
+
+    const toastId = toast.loading("Creating your account...", {
+      description: "Setting up your PhoneStock vendor workspace.",
+    });
+
     try {
       setLoading(true);
-      setError("");
 
       const result = await register(
         form.email.trim().toLowerCase(),
@@ -105,18 +143,65 @@ export default function RegisterPage() {
       );
 
       if (result.error) {
-        setError(result.error);
+        toast.error("Registration failed", {
+          id: toastId,
+          description: result.error,
+        });
+
         return;
       }
 
-      router.replace("/dashboard");
+      if (!result.user) {
+        toast.error("Account could not be created", {
+          id: toastId,
+          description:
+            "Supabase did not return the new account information.",
+        });
+
+        return;
+      }
+
+      setForm(initialForm);
+      setAcceptedTerms(false);
+
+      if (result.session) {
+        toast.success("Registration successful", {
+          id: toastId,
+          description:
+            "Your PhoneStock workspace is ready. Opening your dashboard...",
+        });
+
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, 800)
+        );
+
+        router.replace("/dashboard");
+        router.refresh();
+
+        return;
+      }
+
+      toast.success("Account created successfully", {
+        id: toastId,
+        description:
+          "Check your email and confirm your account before signing in.",
+        duration: 6000,
+      });
+
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 1200)
+      );
+
+      router.replace("/login");
       router.refresh();
     } catch (registerError) {
-      setError(
-        registerError instanceof Error
-          ? registerError.message
-          : "Something went wrong while creating your account."
-      );
+      toast.error("Unable to create account", {
+        id: toastId,
+        description:
+          registerError instanceof Error
+            ? registerError.message
+            : "An unexpected registration error occurred.",
+      });
     } finally {
       setLoading(false);
     }
@@ -130,6 +215,7 @@ export default function RegisterPage() {
         <div className="grid w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-white/[0.04] shadow-[0_35px_140px_rgba(34,211,238,0.12)] lg:grid-cols-[0.9fr_1.1fr]">
           <section className="relative hidden overflow-hidden bg-gradient-to-br from-cyan-300 via-cyan-500 to-blue-700 p-10 text-[#050816] lg:flex lg:flex-col lg:justify-between xl:p-12">
             <div className="absolute -right-28 -top-28 h-96 w-96 rounded-full border border-[#050816]/10" />
+
             <div className="absolute -bottom-36 -left-28 h-96 w-96 rounded-full bg-[#050816]/10 blur-3xl" />
 
             <div className="relative">
@@ -140,6 +226,7 @@ export default function RegisterPage() {
 
                 <div>
                   <h1 className="text-2xl font-black">PhoneStock</h1>
+
                   <p className="text-xs uppercase tracking-[0.3em] text-[#050816]/55">
                     Vendor Management
                   </p>
@@ -202,7 +289,9 @@ export default function RegisterPage() {
               <div className="flex items-center gap-3">
                 <ShieldCheck size={22} />
 
-                <p className="font-black">Built for independent vendors</p>
+                <p className="font-black">
+                  Built for independent vendors
+                </p>
               </div>
 
               <p className="mt-3 text-sm leading-6 text-[#050816]/65">
@@ -236,16 +325,11 @@ export default function RegisterPage() {
               </p>
             </div>
 
-            {error && (
-              <div
-                role="alert"
-                className="mt-6 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm leading-6 text-red-300"
-              >
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              className="mt-8 space-y-5"
+            >
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label
@@ -261,10 +345,11 @@ export default function RegisterPage() {
                     autoComplete="name"
                     placeholder="Temitope Eniola"
                     value={form.fullName}
+                    disabled={loading}
                     onChange={(event) =>
                       updateField("fullName", event.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400"
+                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
 
@@ -282,10 +367,11 @@ export default function RegisterPage() {
                     autoComplete="organization"
                     placeholder="Apex Mobile Store"
                     value={form.businessName}
+                    disabled={loading}
                     onChange={(event) =>
                       updateField("businessName", event.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400"
+                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -306,10 +392,11 @@ export default function RegisterPage() {
                     autoComplete="tel"
                     placeholder="0801 234 5678"
                     value={form.phoneNumber}
+                    disabled={loading}
                     onChange={(event) =>
                       updateField("phoneNumber", event.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400"
+                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   />
 
                   <p className="mt-2 text-xs leading-5 text-white/30">
@@ -329,13 +416,15 @@ export default function RegisterPage() {
                   <input
                     id="email"
                     type="email"
+                    inputMode="email"
                     autoComplete="email"
                     placeholder="you@example.com"
                     value={form.email}
+                    disabled={loading}
                     onChange={(event) =>
                       updateField("email", event.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400"
+                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 outline-none transition placeholder:text-white/25 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -355,21 +444,23 @@ export default function RegisterPage() {
                     autoComplete="new-password"
                     placeholder="Create a secure password"
                     value={form.password}
+                    disabled={loading}
                     onChange={(event) =>
                       updateField("password", event.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 pr-14 outline-none transition placeholder:text-white/25 focus:border-cyan-400"
+                    className="w-full rounded-xl border border-white/10 bg-[#071020] px-5 py-4 pr-14 outline-none transition placeholder:text-white/25 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   />
 
                   <button
                     type="button"
+                    disabled={loading}
                     onClick={() =>
                       setShowPassword((current) => !current)
                     }
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-cyan-300"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {showPassword ? (
                       <EyeOff size={20} />
@@ -413,10 +504,11 @@ export default function RegisterPage() {
                 <input
                   type="checkbox"
                   checked={acceptedTerms}
+                  disabled={loading}
                   onChange={(event) =>
                     setAcceptedTerms(event.target.checked)
                   }
-                  className="mt-1 h-4 w-4 accent-cyan-400"
+                  className="mt-1 h-4 w-4 accent-cyan-400 disabled:cursor-not-allowed"
                 />
 
                 <span className="text-sm leading-6 text-white/50">
@@ -447,7 +539,9 @@ export default function RegisterPage() {
                     : "cursor-not-allowed bg-white/10 text-white/35"
                 }`}
               >
-                {loading && <Loader2 className="animate-spin" size={20} />}
+                {loading && (
+                  <Loader2 className="animate-spin" size={20} />
+                )}
 
                 {loading
                   ? "Creating your account..."
