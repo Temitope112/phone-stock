@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  ShieldAlert,
   ShieldCheck,
   ShoppingCart,
   Smartphone,
@@ -18,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { useAuth } from "../context/AuthContext";
+import { usePlatformSettings } from "../hooks/usePlatformSettings";
 
 type RegisterForm = {
   fullName: string;
@@ -38,6 +40,13 @@ const initialForm: RegisterForm = {
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
+
+  const {
+    settings,
+    loading: settingsLoading,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = usePlatformSettings();
 
   const [form, setForm] = useState<RegisterForm>(initialForm);
   const [showPassword, setShowPassword] = useState(false);
@@ -79,7 +88,22 @@ export default function RegisterPage() {
   ) => {
     event.preventDefault();
 
-    if (loading) return;
+    if (loading || settingsLoading) return;
+
+    /*
+      Check the setting again before registration.
+
+      This prevents submission if the admin disables registrations
+      while the user already has the page open.
+    */
+    if (!settings.registrations_enabled) {
+      toast.error("Registration is currently closed", {
+        description:
+          "PhoneStock is not accepting new vendor accounts at this time.",
+      });
+
+      return;
+    }
 
     if (!form.fullName.trim()) {
       toast.error("Full name is required");
@@ -96,6 +120,7 @@ export default function RegisterPage() {
         description:
           "Customers will use this number to contact you.",
       });
+
       return;
     }
 
@@ -106,8 +131,10 @@ export default function RegisterPage() {
 
     if (!passwordChecks.length) {
       toast.error("Password is too short", {
-        description: "Your password must contain at least 6 characters.",
+        description:
+          "Your password must contain at least 6 characters.",
       });
+
       return;
     }
 
@@ -116,6 +143,7 @@ export default function RegisterPage() {
         description:
           "Include at least one letter and one number.",
       });
+
       return;
     }
 
@@ -124,11 +152,13 @@ export default function RegisterPage() {
         description:
           "You must accept the Terms and Privacy Policy to continue.",
       });
+
       return;
     }
 
     const toastId = toast.loading("Creating your account...", {
-      description: "Setting up your PhoneStock vendor workspace.",
+      description:
+        "Setting up your PhoneStock vendor workspace.",
     });
 
     try {
@@ -207,6 +237,130 @@ export default function RegisterPage() {
     }
   };
 
+  if (settingsLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#050816] px-5 text-white">
+        <div className="flex items-center gap-3 text-white/50">
+          <Loader2
+            size={22}
+            className="animate-spin text-cyan-300"
+          />
+
+          Checking registration availability...
+        </div>
+      </main>
+    );
+  }
+
+  if (!settings.registrations_enabled) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050816] px-5 py-10 text-white">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[650px] w-[650px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/10 blur-[170px]" />
+
+        <div className="relative w-full max-w-2xl rounded-[2rem] border border-amber-400/20 bg-white/[0.04] p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.35)] md:p-12">
+          <Link
+            href="/"
+            className="mx-auto inline-flex items-center gap-3"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400 text-[#050816]">
+              <Smartphone size={24} />
+            </div>
+
+            <div className="text-left">
+              <p className="text-xl font-black">
+                {settings.platform_name || "PhoneStock"}
+              </p>
+
+              <p className="text-xs uppercase tracking-[0.25em] text-white/35">
+                Vendor Management
+              </p>
+            </div>
+          </Link>
+
+          <div className="mx-auto mt-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300">
+            <ShieldAlert size={31} />
+          </div>
+
+          <p className="mt-8 text-sm font-bold uppercase tracking-[0.3em] text-amber-300">
+            Registration paused
+          </p>
+
+          <h1 className="mt-4 text-4xl font-black leading-tight md:text-5xl">
+            Vendor registration is temporarily closed.
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-xl leading-8 text-white/50">
+            PhoneStock is not accepting new vendor accounts at the moment.
+            Existing vendors can still sign in and manage their businesses.
+          </p>
+
+          {(settings.support_email || settings.support_phone) && (
+            <div className="mt-7 rounded-2xl border border-white/10 bg-[#071020] p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/35">
+                Need assistance?
+              </p>
+
+              {settings.support_email && (
+                <a
+                  href={`mailto:${settings.support_email}`}
+                  className="mt-3 block font-bold text-cyan-300 transition hover:text-white"
+                >
+                  {settings.support_email}
+                </a>
+              )}
+
+              {settings.support_phone && (
+                <a
+                  href={`https://wa.me/${settings.support_phone.replace(
+                    /\D/g,
+                    ""
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 block font-bold text-cyan-300 transition hover:text-white"
+                >
+                  WhatsApp support
+                </a>
+              )}
+            </div>
+          )}
+
+          <div className="mt-9 flex flex-col justify-center gap-4 sm:flex-row">
+            <Link
+              href="/login"
+              className="rounded-full bg-cyan-400 px-7 py-4 font-black text-[#050816] transition hover:bg-white"
+            >
+              Sign in
+            </Link>
+
+            <Link
+              href="/support"
+              className="rounded-full border border-white/10 px-7 py-4 font-black text-white/65 transition hover:border-cyan-400/30 hover:text-cyan-300"
+            >
+              Contact support
+            </Link>
+          </div>
+
+          {settingsError && (
+            <div className="mt-7 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-sm text-amber-200">
+              <p>
+                Platform settings could not be refreshed.
+              </p>
+
+              <button
+                type="button"
+                onClick={refetchSettings}
+                className="mt-2 font-bold text-cyan-300 transition hover:text-white"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050816] px-5 py-8 text-white md:px-8">
       <div className="pointer-events-none absolute left-1/2 top-0 h-[650px] w-[650px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[170px]" />
@@ -219,13 +373,18 @@ export default function RegisterPage() {
             <div className="absolute -bottom-36 -left-28 h-96 w-96 rounded-full bg-[#050816]/10 blur-3xl" />
 
             <div className="relative">
-              <Link href="/" className="inline-flex items-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-3"
+              >
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#050816] text-cyan-300 shadow-xl">
                   <Smartphone size={28} />
                 </div>
 
                 <div>
-                  <h1 className="text-2xl font-black">PhoneStock</h1>
+                  <h1 className="text-2xl font-black">
+                    {settings.platform_name || "PhoneStock"}
+                  </h1>
 
                   <p className="text-xs uppercase tracking-[0.3em] text-[#050816]/55">
                     Vendor Management
@@ -274,7 +433,9 @@ export default function RegisterPage() {
                     >
                       <Icon size={21} />
 
-                      <h3 className="mt-4 font-black">{item.title}</h3>
+                      <h3 className="mt-4 font-black">
+                        {item.title}
+                      </h3>
 
                       <p className="mt-1 text-sm text-[#050816]/65">
                         {item.text}
@@ -324,6 +485,25 @@ export default function RegisterPage() {
                 PhoneStock workspace.
               </p>
             </div>
+
+            {settingsError && (
+              <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-sm text-amber-200">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    Platform settings could not be refreshed. Registration is
+                    using its default availability setting.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={refetchSettings}
+                    className="shrink-0 font-bold text-cyan-300 transition hover:text-white"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
 
             <form
               onSubmit={handleSubmit}
@@ -458,7 +638,9 @@ export default function RegisterPage() {
                       setShowPassword((current) => !current)
                     }
                     aria-label={
-                      showPassword ? "Hide password" : "Show password"
+                      showPassword
+                        ? "Hide password"
+                        : "Show password"
                     }
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -540,7 +722,10 @@ export default function RegisterPage() {
                 }`}
               >
                 {loading && (
-                  <Loader2 className="animate-spin" size={20} />
+                  <Loader2
+                    className="animate-spin"
+                    size={20}
+                  />
                 )}
 
                 {loading
