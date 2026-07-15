@@ -11,6 +11,7 @@ import {
   Mail,
   Smartphone,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { supabase } from "../lib/supabase";
 
@@ -20,42 +21,58 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
+    if (loading) return;
+
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanEmail || loading) {
-      setError("Enter the email address connected to your account.");
+    if (!cleanEmail) {
+      toast.error("Email address is required", {
+        description:
+          "Enter the email connected to your PhoneStock account.",
+      });
+
       return;
     }
 
+    const toastId = toast.loading("Sending reset link...", {
+      description: "Preparing your secure password recovery email.",
+    });
+
     try {
       setLoading(true);
-      setError("");
 
       const redirectUrl = `${window.location.origin}/reset-password`;
 
-      const { error: resetError } =
+      const { error } =
         await supabase.auth.resetPasswordForEmail(cleanEmail, {
           redirectTo: redirectUrl,
         });
 
-      if (resetError) {
-        throw resetError;
+      if (error) {
+        throw new Error(error.message);
       }
 
       setSent(true);
+
+      toast.success("Reset link sent", {
+        id: toastId,
+        description:
+          "Check your email and open the latest password-reset link.",
+      });
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to send the password-reset email."
-      );
+      toast.error("Unable to send reset link", {
+        id: toastId,
+        description:
+          requestError instanceof Error
+            ? requestError.message
+            : "An unexpected error occurred.",
+      });
     } finally {
       setLoading(false);
     }
@@ -76,6 +93,7 @@ export default function ForgotPasswordPage() {
 
                 <div>
                   <h1 className="text-2xl font-black">PhoneStock</h1>
+
                   <p className="text-xs uppercase tracking-[0.3em] text-[#050816]/55">
                     Account Recovery
                   </p>
@@ -87,15 +105,17 @@ export default function ForgotPasswordPage() {
               </h2>
 
               <p className="mt-6 max-w-md text-lg leading-8 text-[#050816]/70">
-                Enter your registered email and we’ll send you a secure link to
-                choose a new password.
+                Enter your registered email and we’ll send you a secure link
+                to choose a new password.
               </p>
             </div>
 
             <div className="rounded-2xl border border-[#050816]/10 bg-white/20 p-5 backdrop-blur">
               <LockKeyhole size={24} />
 
-              <p className="mt-4 font-black">Secure password recovery</p>
+              <p className="mt-4 font-black">
+                Secure password recovery
+              </p>
 
               <p className="mt-2 text-sm leading-6 text-[#050816]/65">
                 The reset link is sent only to the email connected to your
@@ -130,16 +150,16 @@ export default function ForgotPasswordPage() {
 
                 <p className="mt-5 leading-8 text-white/50">
                   We sent password-reset instructions to{" "}
-                  <span className="font-bold text-white">{email}</span>. Open the
-                  link in that email to create a new password.
+                  <span className="font-bold text-white">
+                    {email.trim().toLowerCase()}
+                  </span>
+                  . Open the latest link in that email to create a new
+                  password.
                 </p>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setSent(false);
-                    setError("");
-                  }}
+                  onClick={() => setSent(false)}
                   className="mt-8 w-full rounded-xl border border-white/10 px-6 py-4 font-black text-white/70 transition hover:border-cyan-400/30 hover:text-cyan-300"
                 >
                   Send another link
@@ -164,20 +184,12 @@ export default function ForgotPasswordPage() {
                   </h1>
 
                   <p className="mt-3 leading-7 text-white/50">
-                    Enter the email address you used when creating your account.
+                    Enter the email address you used when creating your
+                    account.
                   </p>
                 </div>
 
-                {error && (
-                  <div
-                    role="alert"
-                    className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300"
-                  >
-                    {error}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="mt-8">
+                <form onSubmit={handleSubmit} noValidate className="mt-8">
                   <label
                     htmlFor="email"
                     className="mb-2 block text-sm font-semibold text-white/65"
@@ -186,16 +198,23 @@ export default function ForgotPasswordPage() {
                   </label>
 
                   <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#071020] px-4 transition focus-within:border-cyan-400">
-                    <Mail size={19} className="shrink-0 text-white/35" />
+                    <Mail
+                      size={19}
+                      className="shrink-0 text-white/35"
+                    />
 
                     <input
                       id="email"
                       type="email"
+                      inputMode="email"
                       autoComplete="email"
                       placeholder="you@example.com"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className="w-full bg-transparent py-4 outline-none placeholder:text-white/30"
+                      disabled={loading}
+                      onChange={(event) =>
+                        setEmail(event.target.value)
+                      }
+                      className="w-full bg-transparent py-4 outline-none placeholder:text-white/30 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </div>
 
@@ -209,10 +228,15 @@ export default function ForgotPasswordPage() {
                     }`}
                   >
                     {loading && (
-                      <Loader2 size={20} className="animate-spin" />
+                      <Loader2
+                        size={20}
+                        className="animate-spin"
+                      />
                     )}
 
-                    {loading ? "Sending reset link..." : "Send reset link"}
+                    {loading
+                      ? "Sending reset link..."
+                      : "Send reset link"}
                   </button>
                 </form>
 
